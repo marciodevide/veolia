@@ -1,0 +1,40 @@
+trigger copiaCodigoCuentaEvent on Event (before insert,before update) {
+    list<Id> idsEventos = new list<Id>();
+    if(Trigger.isInsert || Trigger.isUpdate){
+        list<Event> eventosInsert= Trigger.new;
+        for(Event evento: eventosInsert) idsEventos.add(evento.WhatId);
+        list<Account> cuentas = new list<Account>([SELECT Id,COM_NUM_Codigo__c,COM_FOR_DSyT__c , COM_FOR_DCG__c FROM Account WHERE Id IN: idsEventos]);
+        if(cuentas.isEmpty()){
+            list<Opportunity> oportunidades = new list<Opportunity>([SELECT Id,OPO_TXT_Codigo_Oportunidad__c,Account.COM_NUM_Codigo__c, Account.COM_FOR_DCG__c,OPO_SEL_Territorio_Oportunidad__c FROM Opportunity WHERE Id IN: idsEventos]);
+            for(Event evento2: eventosInsert){
+                for(Opportunity op: oportunidades){
+                    if(evento2.WhatId == op.Id){
+                        evento2.ACT_TXT_CodigoOportunidad__c = op.OPO_TXT_Codigo_Oportunidad__c;
+                        evento2.ACT_TXT_CodigoCuenta__c = op.Account.COM_NUM_Codigo__c;
+                        //evento2.ACT_TXT_Account_DSIT__c = op.Account_DSIT__c;
+                        evento2.ACT_TXT_Descripcion__c = evento2.Subject;
+                        //evento2.Subject = evento2.ACT_TXT_Descripcion_accion__c;
+                        if(evento2.ACT_SEL_Territorio__c==null ||evento2.ACT_SEL_Territorio__c==''){
+                            evento2.ACT_SEL_Territorio__c =  op.OPO_SEL_Territorio_Oportunidad__c;
+                        }
+                        
+                    }
+                }
+            }
+        } else{
+            for(Event evento2: eventosInsert){
+                for(Account ac: cuentas){
+                    if(evento2.WhatId == ac.Id){
+                        evento2.ACT_TXT_CodigoCuenta__c = ac.COM_NUM_Codigo__c;
+                        //evento2.ACT_TXT_Account_DSIT__c =ac.COM_FOR_DSyT__c;
+						evento2.ACT_TXT_Descripcion__c = evento2.Subject;
+                        //evento2.Subject = evento2.ACT_TXT_Descripcion_accion__c;
+                        if(evento2.ACT_SEL_Territorio__c==null ||evento2.ACT_SEL_Territorio__c==''){
+                            evento2.ACT_SEL_Territorio__c = ac.COM_FOR_DCG__c;
+                        }
+                    }
+                }
+            }
+        }   
+    }
+}

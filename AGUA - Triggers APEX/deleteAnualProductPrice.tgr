@@ -1,0 +1,24 @@
+trigger deleteAnualProductPrice on Oportunidad_Producto__c (after delete) {
+    List<AnualProductPrice__c> anualProductPriceList = new List<AnualProductPrice__c>(); 
+    List<Id> oppList = new List<Id>();  
+    List<Id> prodIdSet = new List<Id>(); 
+    List<AnualProductPrice__c> borrado  = new List<AnualProductPrice__c>(); 
+    for(Oportunidad_Producto__c producto : Trigger.old) {  
+        prodIdSet.add(producto.id);  
+        System.debug('Producto: '+prodIdSet);
+        oppList.add(producto.OP_MD_Oportunidad__c);
+        System.debug('Oportunidad: '+oppList);
+    }
+
+    anualProductPriceList=[SELECT Id,Product__c,Opportunity__c FROM AnualProductPrice__c  WHERE Opportunity__c IN :oppList]  ;
+	
+    System.debug('Lista de anual product price: '+anualProductPriceList);
+    for(AnualProductPrice__c anual : anualProductPriceList){
+        if (anual.Product__c == null){
+            borrado.add(anual);
+            System.debug('Se va a borrar  -> '+borrado);
+        }
+    }
+    delete borrado;
+    System.debug('¡¡¡¡ anual product price borrado!!!!');
+}

@@ -1,0 +1,293 @@
+trigger informaCampos on Oportunidad_Producto__c (before insert, after insert, before update) {
+    
+    //START - Everis 05/04/2017
+    System.debug('El needTriggerRun devuelve: '+UtilAcc.needTriggerRun());
+    if (!UtilAcc.needTriggerRun() || System.Label.EsVisibilidadOportunidades == 'True') return; // Código indicado para ver si se deben ejecutar los triggers (Si viene de batch cálculo contadores no deberá lanzarse
+    //END - Everis 05/04/2017   
+    
+    List<Oportunidad_Producto__c> oportunidades = Trigger.new;
+    Set<Id> idOportunidades = new Set<Id>();
+    List<Id> idSubAmbitos = new List<Id>();
+    Set<Id> idTecnologias = new Set<Id>();
+    Set<Id> idProductos = new Set<Id>();
+    Map<Id,SubAmbito__c> mapSubAmbito = new Map<Id, SubAmbito__c>();
+    Map<String,SubAmbito__c> mapSubAmbitoSAP = new Map<String, SubAmbito__c>();
+    List<Producto__c> productos = new List<Producto__c>();
+    List<Opportunity> opp = new List<Opportunity>();
+    //******************Start Everis 26/01
+    Map<String,String> mapDepart = new Map<String,String>();
+    if (Trigger.isBefore) {
+        for (Departamento__c dep : [SELECT Name, Id from Departamento__c]) mapDepart.put(dep.Name, dep.Id);
+        //******************FIN Everis 26/01
+        // No integración desde SAP
+        if (UserInfo.getUserId() != Label.ADMIN_USER_SAP_ID){    
+            for(Oportunidad_Producto__c op: oportunidades) idSubAmbitos.add(op.OpProd_LKP_SubAmbito__c);
+            
+            for (SubAmbito__c SA : [SELECT id, LKP_Producto_Aqualogy__c, SA_LKP_Tecnologia__c, SA_LKP_Tecnologia__r.Name FROM SubAmbito__c WHERE id IN:idSubAmbitos]){
+                mapSubAmbito.put(SA.Id, SA);
+                idOportunidades.add(SA.LKP_Producto_Aqualogy__c);
+            }
+            
+            productos = [SELECT Id,Name, MD_Ambito__r.Name, PROD_LK_Linea_de_Servicio__r.LS_SEL_Linea_de_Servicio__c,PROD_LK_Linea_de_Servicio__r.LS_SEL_Division__c FROM Producto__c WHERE Id IN :idOportunidades];
+            
+            
+            if(Trigger.isInsert){
+                for(Oportunidad_Producto__c  a: oportunidades){
+                    
+                    if(mapSubAmbito.get(a.OpProd_LKP_SubAmbito__c)!=null){
+                        a.OP_LKP_Producto__c = mapSubAmbito.get(a.OpProd_LKP_SubAmbito__c).LKP_Producto_Aqualogy__c;
+                        if (mapSubAmbito.get(a.OpProd_LKP_SubAmbito__c).SA_LKP_Tecnologia__c!=null){ 
+                            a.LKP_Tecnologia_del__c = mapSubAmbito.get(a.OpProd_LKP_SubAmbito__c).SA_LKP_Tecnologia__c;
+                            a.OpProd_CHK_TieneTecnologia__c = true;
+                            a.OpProd_PKL_Tecnologia__c = mapSubAmbito.get(a.OpProd_LKP_SubAmbito__c).SA_LKP_Tecnologia__r.Name;
+                        }
+                        else a.LKP_Tecnologia_del__c = null;a.OpProd_CHK_TieneTecnologia__c = false;
+                        for(Producto__c b: productos){
+                            if(a.OP_LKP_Producto__c == b.Id){
+                                a.OP_SEL_Producto__c = b.Name;
+                                a.OpProd_PKL_Ambito__c = b.MD_Ambito__r.Name;
+                                a.OP_SEL_LineaServicio__c = b.PROD_LK_Linea_de_Servicio__r.LS_SEL_Linea_de_Servicio__c;
+                                a.OP_SEL_Division__c = b.PROD_LK_Linea_de_Servicio__r.LS_SEL_Division__c;
+                            }
+                        }
+                    }
+                }
+            }
+            
+            if(Trigger.isUpdate){
+                for(Oportunidad_Producto__c a: Trigger.new){
+                    if(a.OpProd_LKP_SubAmbito__c != null 
+                    && a.OpProd_LKP_SubAmbito__c!= Trigger.oldMap.get(a.Id).OpProd_LKP_SubAmbito__c 
+                    && mapSubAmbito.get(a.OpProd_LKP_SubAmbito__c)!= null){
+                        a.OP_LKP_Producto__c = mapSubAmbito.get(a.OpProd_LKP_SubAmbito__c).LKP_Producto_Aqualogy__c;
+                        if (mapSubAmbito.get(a.OpProd_LKP_SubAmbito__c).SA_LKP_Tecnologia__c!=null){
+                            a.LKP_Tecnologia_del__c = mapSubAmbito.get(a.OpProd_LKP_SubAmbito__c).SA_LKP_Tecnologia__c;
+                            a.OpProd_CHK_TieneTecnologia__c = True;
+                            a.OpProd_PKL_Tecnologia__c = mapSubAmbito.get(a.OpProd_LKP_SubAmbito__c).SA_LKP_Tecnologia__r.Name;
+                        } else{
+                            a.LKP_Tecnologia_del__c = null;
+                            a.OpProd_PKL_Tecnologia__c = null;
+                            a.OpProd_CHK_TieneTecnologia__c = false;
+                        }
+                        for(Producto__c b: productos){
+                            if(a.OP_LKP_Producto__c == b.Id){
+                                a.OP_SEL_Producto__c = b.Name;
+                                a.OpProd_PKL_Ambito__c = b.MD_Ambito__r.Name;
+                                a.OP_SEL_LineaServicio__c = b.PROD_LK_Linea_de_Servicio__r.LS_SEL_Linea_de_Servicio__c;
+                                a.OP_SEL_Division__c = b.PROD_LK_Linea_de_Servicio__r.LS_SEL_Division__c;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Para el caso que vengan desde integración habrá que rellenar el Sub-Ambito a partir del producto y la tecnología
+        // Comento la línea 87 y 181 para que se rellene automáticamente siempre el Sub-Ámbito
+        if (UserInfo.getUserId() == Label.ADMIN_USER_SAP_ID){
+            String tecnologia;
+            for(Oportunidad_Producto__c op: oportunidades){
+                //idOportunidades.add(op.Id);
+                idTecnologias.add(op.LKP_Tecnologia_del__c);
+                idProductos.add(op.OP_LKP_Producto__c);
+                tecnologia = op.LKP_Tecnologia_del__c;
+                System.debug('Listado de  tecnologías '+idTecnologias);
+                System.debug('La tecnología '+op.LKP_Tecnologia_del__c);
+                System.debug('La tecnología string '+tecnologia);
+                System.debug('El producto '+op.OP_LKP_Producto__c);
+                System.debug('Los datos del producto: '+ op);
+                if(op.OP_DIV_PrecioSinIVA__c==null) op.OP_DIV_PrecioSinIVA__c=0.00;
+            }
+            
+            List<Producto__c> productos = [SELECT Id,PROD_BOL_Activo__c ,Name,MD_Ambito__r.Name,PROD_LK_Linea_de_Servicio__r.LS_SEL_Linea_de_Servicio__c,PROD_LK_Linea_de_Servicio__r.LS_SEL_Division__c FROM Producto__c WHERE Id IN :idProductos];
+            if (tecnologia == null) {
+                for (SubAmbito__c SA : [SELECT Id, LKP_Producto_Aqualogy__c, SA_LKP_Tecnologia__c, SA_LKP_Tecnologia__r.Name FROM SubAmbito__c WHERE LKP_Producto_Aqualogy__c IN: idProductos]) {
+                    mapSubAmbitoSAP.put(String.ValueOf(SA.LKP_Producto_Aqualogy__c), SA);
+                }
+            }
+            if (tecnologia != null) {
+                for (SubAmbito__c SA : [SELECT Id, LKP_Producto_Aqualogy__c, SA_LKP_Tecnologia__c, SA_LKP_Tecnologia__r.Name FROM SubAmbito__c WHERE LKP_Producto_Aqualogy__c IN: idProductos AND SA_LKP_Tecnologia__c IN: idTecnologias]) {
+                    mapSubAmbitoSAP.put(String.ValueOf(SA.LKP_Producto_Aqualogy__c), SA);
+                }
+            }
+
+            System.debug('MArta_El mapa es: '+mapSubAmbitoSAP);
+            Set<Id> oppIds = new Set<Id>();
+            Map<Id, Opportunity> prodIdOpp = new Map<Id, Opportunity>();
+            for(Oportunidad_Producto__c a: oportunidades) oppIds.add(a.OP_MD_Oportunidad__c);
+            System.debug('AAA-oppIds: ' + oppIds);
+
+            Map<Id, Opportunity> oppMap = new Map<Id, Opportunity>([
+                SELECT Nombre__c, OPO_TXT_Codigo_Oportunidad__c,RecordTypeId
+                FROM Opportunity 
+                WHERE Id IN: oppIds
+            ]);
+            System.debug('AAA-oppMap: ' + oppMap);
+            
+            if(Trigger.isInsert){
+                //List<Oportunidad_Producto__c> oppIns = new List<Oportunidad_Producto__c>();
+                System.debug('Trigger insert'+ oportunidades );
+                for(Oportunidad_Producto__c  a: oportunidades){
+                    System.debug('Producto_op: ' + a);
+                    //*****************start Everis 26/01
+                    String nombreProducto = 'Producto_'+ oppMap.get(a.OP_MD_Oportunidad__c).OPO_TXT_Codigo_Oportunidad__c + '_' + oppMap.get(a.OP_MD_Oportunidad__c).Nombre__c; 
+                    Integer maxSize = 80;
+                    if(nombreProducto.length() > maxSize) a.Name = nombreProducto.substring(0, maxSize);
+                    else a.Name = nombreProducto;
+                    
+                    //a.Name = 'Producto_'+ opp.OPO_TXT_Codigo_Oportunidad__c + '_' + opp.Nombre__c;
+
+                    String recordTypeId = oppMap.get(a.OP_MD_Oportunidad__c).RecordTypeId;
+                    if(recordTypeId.equals(Label.RT_Espana)) a.RecordTypeId = Label.RecordType_PB_Espana;
+                    else if(recordTypeId.equals(Label.RT10)) a.RecordTypeId = Label.RecordType_PB_Espana_Bloq;
+                    //****************Fin Everis 26/01
+                    System.debug('El producto de oportunidad antes de insertar valores '+a);
+                    System.debug('La oportunidad antes de insertar valores '+a.OP_MD_Oportunidad__c);
+                    System.debug('La tecnología antes de insertar valores '+a.LKP_Tecnologia_del__c);  
+                    System.debug('El producto antes de insertar valores  '+a.OP_LKP_Producto__c);
+                    System.debug('El producto en el mapa  '+mapSubAmbitoSAP.get(String.ValueOf(a.OP_LKP_Producto__c)));
+                    
+                    if(a.LKP_Tecnologia_del__c != null && 
+                    a.OP_LKP_Producto__c != null && 
+                    mapSubAmbitoSAP.containsKey(String.ValueOf(a.OP_LKP_Producto__c)) && 
+                    mapSubAmbitoSAP.get(String.ValueOf(a.OP_LKP_Producto__c)) != null){
+                        System.debug('La oportunidad de tecnologia no null '+a.OP_MD_Oportunidad__c);
+                        System.debug('La tecnología no null '+a.LKP_Tecnologia_del__c);
+                        System.debug('El producto de tecnologia no null '+a.OP_LKP_Producto__c);
+                        a.OpProd_LKP_SubAmbito__c = mapSubAmbitoSAP.get(String.ValueOf(a.OP_LKP_Producto__c)).Id;
+                        a.OpProd_CHK_TieneTecnologia__c = true;
+                        a.OpProd_PKL_Tecnologia__c = mapSubAmbitoSAP.get(String.ValueOf(a.OP_LKP_Producto__c)).SA_LKP_Tecnologia__r.Name;
+                    } else{
+                        if(a.LKP_Tecnologia_del__c == null &&
+                        a.OP_LKP_Producto__c != null && 
+                        mapSubAmbitoSAP.containsKey(String.ValueOf(a.OP_LKP_Producto__c)) && 
+                        (mapSubAmbitoSAP.get(String.ValueOf(a.OP_LKP_Producto__c)) != null)){
+                            System.debug('La oportunidad de tecnologia null '+a.OP_MD_Oportunidad__c);
+                            System.debug('La tecnología  null '+a.LKP_Tecnologia_del__c);
+                            System.debug('El producto de tecnologia  null '+a.OP_LKP_Producto__c);
+                            a.OpProd_LKP_SubAmbito__c = mapSubAmbitoSAP.get(String.ValueOf(a.OP_LKP_Producto__c)).Id;
+                            if(mapSubAmbitoSAP.get(String.ValueOf(a.OP_LKP_Producto__c)).SA_LKP_Tecnologia__r.Name !=null) a.OpProd_CHK_TieneTecnologia__c = true;
+                            a.OpProd_PKL_Tecnologia__c = mapSubAmbitoSAP.get(String.ValueOf(a.OP_LKP_Producto__c)).SA_LKP_Tecnologia__r.Name;
+                        }
+                        //else a.addError(Label.ErrorAdminSAPTecProd); //Ahora al principio no mostramos el error, posteriormente una vez funcione correctamente la integración lo pondremos
+                    }
+                    System.debug('La oportunidad despues de insertar valores '+a.OP_MD_Oportunidad__c);
+                    System.debug('La tecnología despues de insertar valores '+a.LKP_Tecnologia_del__c);  
+                    System.debug('Tiene tecnología despues de insertar valores '+a.OpProd_CHK_TieneTecnologia__c);  
+                    System.debug('Nombre tecnología despues de insertar valores '+a.OpProd_PKL_Tecnologia__c); 
+                    for(Producto__c b: productos){
+                        System.debug('portfolio inicial: '+b);
+                        if(a.OP_LKP_Producto__c == b.Id){
+                            System.debug('Insert desde SAP');
+                            a.OP_SEL_Producto__c = b.Name;
+                            System.debug('Product Name desde SAP: '+ b.Name);
+                            a.OpProd_PKL_Ambito__c = b.MD_Ambito__r.Name;
+                            a.OP_SEL_LineaServicio__c = b.PROD_LK_Linea_de_Servicio__r.LS_SEL_Linea_de_Servicio__c;
+                            a.OP_SEL_Division__c = b.PROD_LK_Linea_de_Servicio__r.LS_SEL_Division__c;
+                            a.OpProd_SEL_Nodo_Dominio__c = 'Iberia';
+                            //a.OP_SEL_ResponsableElaboracionOferta__c = 'Administrador SAP';
+                            a.OpProd_LKP_ResponsableElaboracionOferta__c = label.Administrador_SAP_Elaborador_Oferta_ID;
+                            //*****************start Everis 26/01
+                            if((b.Name == 'Hygiene Solutions') && !Test.isRunningTest())                                            a.Departamento__c = mapDepart.get('LABORATORIOS - Bioseguridad');
+                            else if(b.Name == 'Environmental Testing Services')                                                     a.Departamento__c = mapDepart.get('LABORATORIOS - Servicios Técnicos Análisis');
+                            else if(b.Name == 'Environmental Control & Monitoring')                                                 a.Departamento__c = mapDepart.get('LABORATORIOS - Medio Natural');
+                            else if(b.Name == 'Air Quality (Diagnosis and Modelling)' || b.Name == 'Air Quality (Gas treatment)')   a.Departamento__c = mapDepart.get('LABORATORIOS - Air Quality');
+                            else if(b.Name == 'Smart Water Networks')                                                               a.Departamento__c = mapDepart.get('AQUATEC - [Sistemas Control]');
+                            else if(b.Name == 'Smart Drainage')                                                                     a.Departamento__c = mapDepart.get('AQUATEC - [Sistemas Control]');
+                            //****************Fin Everis 26/01
+                        }
+                    }
+                }
+            }
+            
+            if(Trigger.isUpdate){
+                System.debug('Trigger update'+ oportunidades );
+                for(Oportunidad_Producto__c  a: Trigger.new){
+                    System.debug('Update_Producto_op: ' + a);
+                    //*****************start Everis 26/01
+                    String recordTypeId = oppMap.get(a.OP_MD_Oportunidad__c).RecordTypeId;
+                    if(recordTypeId.equals(Label.RT_Espana)) a.RecordTypeId = Label.RecordType_PB_Espana;
+                    else if(recordTypeId.equals(Label.RT10)) a.RecordTypeId = Label.RecordType_PB_Espana_Bloq;
+                
+                    if(a.LKP_Tecnologia_del__c != null && mapSubAmbitoSAP.get(String.ValueOf(a.OP_LKP_Producto__c))!= null){
+                        if(a.OpProd_LKP_SubAmbito__r.Name == 'Bio-safety'){
+                            System.debug('Se actualiza el departamento de la oportunidad:  ' + a.Id );
+                            a.Departamento__c = mapDepart.get('LABORATORIOS – Bioseguridad');
+                        }
+                        System.debug('Update - La oportunidad antes de insertar valores '+a.OP_MD_Oportunidad__c);
+                        System.debug('Update - Entramos en actualización con tecno no null');
+                        System.debug('Update - La tecnología antes de insertar valores '+a.LKP_Tecnologia_del__c);  
+                        System.debug('Update - El producto antes de insertar valores  '+a.OP_LKP_Producto__c);
+                        System.debug('Update - El subambito es ' + mapSubAmbitoSAP.get(String.ValueOf(a.OP_LKP_Producto__c)+String.ValueOf(a.LKP_Tecnologia_del__c)));
+                        a.OpProd_LKP_SubAmbito__c = mapSubAmbitoSAP.get(String.ValueOf(a.OP_LKP_Producto__c)).Id;
+                        a.OpProd_CHK_TieneTecnologia__c = true;
+                        a.OpProd_PKL_Tecnologia__c = mapSubAmbitoSAP.get(String.ValueOf(a.OP_LKP_Producto__c)).SA_LKP_Tecnologia__r.Name;
+                    }else{
+                        if(a.LKP_Tecnologia_del__c == null && mapSubAmbitoSAP.get(String.ValueOf(a.OP_LKP_Producto__c))!= null){
+                            System.debug('Update - Entramos en actualización con tecno null');
+                            a.OpProd_LKP_SubAmbito__c = mapSubAmbitoSAP.get(String.ValueOf(a.OP_LKP_Producto__c)).Id;
+                            a.OpProd_CHK_TieneTecnologia__c = false;
+                            a.OpProd_PKL_Tecnologia__c = mapSubAmbitoSAP.get(String.ValueOf(a.OP_LKP_Producto__c)).SA_LKP_Tecnologia__r.Name;
+                            System.debug('Update - La oportunidad tecno null '+a.OP_MD_Oportunidad__c);
+                            System.debug('Update - Subambito tecno null: ' + a.OpProd_LKP_SubAmbito__c);
+                            System.debug('Update - Tiene tecno con tecno null: ' + a.OpProd_CHK_TieneTecnologia__c);
+                            System.debug('Update - Tecno con tecno null: ' + a.OpProd_PKL_Tecnologia__c);
+                        }else{
+                            if(mapSubAmbitoSAP.get(String.ValueOf(a.OP_LKP_Producto__c))== null){
+                                System.debug('Update - Entramos en actualización con producto null');
+                                a.OpProd_LKP_SubAmbito__c = null;
+                                a.LKP_Tecnologia_del__c = null;
+                                a.OpProd_CHK_TieneTecnologia__c = false;
+                                a.OpProd_PKL_Tecnologia__c = null;
+                                System.debug('Update - La oportunidad producto  null '+a.OP_MD_Oportunidad__c);
+                                System.debug('Update - Subambito producto null: ' + a.OpProd_LKP_SubAmbito__c);
+                                System.debug('Update - Tiene tecno con producto null: ' + a.OpProd_CHK_TieneTecnologia__c);
+                                System.debug('Update - Tecno con producto null: ' + a.OpProd_PKL_Tecnologia__c);
+                            }//else{ a.addError(Label.ErrorAdminSAPTecProd);}
+                        }
+                        System.debug('Update - La oportunidad despues de insertar valores '+a.OP_MD_Oportunidad__c);
+                        System.debug('Update - La tecnología despues de insertar valores '+a.LKP_Tecnologia_del__c);  
+                        System.debug('Update - Tiene tecnología despues de insertar valores '+a.OpProd_CHK_TieneTecnologia__c);  
+                        System.debug('Update - Nombre tecnología despues de insertar valores '+a.OpProd_PKL_Tecnologia__c); 
+                        //Ahora al principio no mostramos el error, posteriormente una vez funcione correctamente la integración lo pondremos
+                    }
+                    
+                    for(Producto__c b: productos){
+                        if(a.OP_LKP_Producto__c == b.Id){
+                            a.OP_SEL_Producto__c = b.Name;
+                            System.debug('Product Name desde SAP: '+ b.Name);
+                            a.OpProd_PKL_Ambito__c = b.MD_Ambito__r.Name;
+                            a.OP_SEL_LineaServicio__c = b.PROD_LK_Linea_de_Servicio__r.LS_SEL_Linea_de_Servicio__c;
+                            a.OP_SEL_Division__c = b.PROD_LK_Linea_de_Servicio__r.LS_SEL_Division__c;
+                            a.OpProd_SEL_Nodo_Dominio__c = 'Iberia';
+                            //a.OP_SEL_ResponsableElaboracionOferta__c = 'Administrador SAP';
+                            System.debug('Update desde SAP');
+                            //*****************start Everis 26/01
+                            if((b.Name == 'Hygiene Solutions') && !Test.isRunningTest())                                            a.Departamento__c = mapDepart.get('LABORATORIOS - Bioseguridad');
+                            else if((b.Name == 'Environmental Testing Services') && !Test.isRunningTest())                          a.Departamento__c = mapDepart.get('LABORATORIOS - Servicios Técnicos Análisis');
+                            else if(b.Name == 'Environmental Control & Monitoring')                                                 a.Departamento__c = mapDepart.get('LABORATORIOS - Medio Natural');
+                            else if(b.Name == 'Air Quality (Diagnosis and Modelling)' || b.Name == 'Air Quality (Gas treatment)')   a.Departamento__c = mapDepart.get('LABORATORIOS - Air Quality');
+                            //****************Fin Everis 26/01
+                        }
+                    }
+                }
+            }   
+        }
+    } else if (Trigger.isInsert && UserInfo.getUserId() == Label.ADMIN_USER_SAP_ID) {
+        Set<Id> oppIds = new Set<Id>();
+        for(Oportunidad_Producto__c a: Trigger.new){
+            oppIds.add(a.OP_MD_Oportunidad__c);
+        }
+        Map<Id, Opportunity> oppMap = new Map<Id, Opportunity>([
+            SELECT Id
+            FROM Opportunity
+            WHERE Id IN: oppIds AND COM_LKP_Producto_Lider__c = null
+        ]);
+        for(Oportunidad_Producto__c a: Trigger.new){
+            if (oppMap.containsKey(a.OP_MD_Oportunidad__c)) {
+                oppMap.get(a.OP_MD_Oportunidad__c).COM_LKP_Producto_Lider__c = a.Id;
+            }
+        }
+        if (!oppMap.isEmpty()) update oppMap.values();
+    }
+}

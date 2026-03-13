@@ -1,0 +1,35 @@
+// Rellena la picklist “línea de servicio” (PROD_SEL_Linea_de_Servicio__c)
+// Lanza el batch “BatchcopiaValoresListas” solo en caso de update (no de insert). Este batch recalcula los campos relacionados de los “Productos de la oportunidad” que tengan asociados estos productos.
+
+trigger copiaValoresListas on Producto__c (before insert, before update) {
+    
+    Map<Id, Producto__c> mapProd = new Map<Id, Producto__c>();
+    Set<Id> setLS= new Set<Id>();
+    Map<Id,AQUA_Linea_de_Servicio__c> mapLS = new Map<Id,AQUA_Linea_de_Servicio__c>();
+    
+    for (Producto__c prod : Trigger.new) setLS.add(prod.PROD_LK_Linea_de_Servicio__c);
+    
+    for(AQUA_Linea_de_Servicio__c ls : [SELECT Id, LS_SEL_Linea_de_Servicio__c FROM AQUA_Linea_de_Servicio__c WHERE Id IN: setLS]) mapLS.put(ls.Id, ls);
+    
+    // Rellena el valor de la picklist "Linea de servicio"
+    for (Producto__c prod: Trigger.new) {
+        prod.PROD_SEL_Linea_de_Servicio__c = mapLS.get(prod.PROD_LK_Linea_de_Servicio__c).LS_SEL_Linea_de_Servicio__c;
+        System.debug('La nueva linea de servicio del producto es: '+prod.PROD_SEL_Linea_de_Servicio__c);
+        mapProd.put(prod.Id, prod);
+    }
+    
+    //Lanza el batch "BatchcopiaValoresListas" con los siguientes parámetros: query inicial del batch, el mapa con los productos, los valores antiguos de estos productos, la fecha actual
+    if (!Test.isRunningTest()) {
+        String query = 'SELECT OP_LKP_Producto__c,OP_SEL_Division__c,OP_SEL_LineaProducto__c,OP_SEL_LineaServicio__c,OP_SEL_Producto__c, CreatedDate FROM Oportunidad_Producto__c WHERE OP_LKP_Producto__c IN: setProducto AND CreatedDate <=: fechaLimite Order By CreatedDate desc LIMIT 2000';//50000    
+        if (Trigger.isUpdate && mapProd.size()>0) Id batchInstanceId = Database.executeBatch (new BatchcopiaValoresListas(query,mapProd,Trigger.oldMap,System.now()),2000);
+    }
+    else{
+        //list<AsyncApexJob> listJob = new list<AsyncApexJob>();
+        //listJob = [SELECT ApexClassId FROM AsyncApexJob WHERE Status<>'Completed'];
+        //if (listJob.size() == 0)
+        //{
+        String query = 'SELECT OP_LKP_Producto__c,OP_SEL_Division__c,OP_SEL_LineaProducto__c,OP_SEL_LineaServicio__c,OP_SEL_Producto__c, CreatedDate FROM Oportunidad_Producto__c WHERE OP_LKP_Producto__c IN: setProducto AND CreatedDate <=: fechaLimite Order By CreatedDate desc LIMIT 2000';//50000    
+        if (Trigger.isUpdate && mapProd.size()>0) Id batchInstanceId = Database.executeBatch (new BatchcopiaValoresListas(query,mapProd,Trigger.oldMap,System.now()),2000);
+        //}
+    }
+}

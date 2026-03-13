@@ -1,0 +1,6 @@
+// Le pasa al batch “BatchUnificadoOportunidad” los usuarios y las líneas de servicio que se han modificado para recalcular.
+
+trigger opShareLSU on AQUA_Linea_de_Servicio_de_Usuario__c (after insert, before delete) {
+    
+    
+}

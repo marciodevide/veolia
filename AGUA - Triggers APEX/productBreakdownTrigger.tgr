@@ -1,0 +1,12 @@
+trigger productBreakdownTrigger on Oportunidad_Producto__c (before insert, after insert, before update, after update,after delete) {
+	if(Trigger.isBefore){
+        if(Trigger.isInsert) productBreakdownTriggerHandler.beforeInsert(Trigger.new);
+        if(Trigger.isUpdate) productBreakdownTriggerHandler.beforeUpdate(Trigger.new, Trigger.old);
+    }
+    if(Trigger.isAfter){
+        system.debug('Trigger: '+Trigger.isAfter);
+        if(Trigger.isInsert) productBreakdownTriggerHandler.afterInsert(Trigger.new);
+        if(Trigger.isUpdate) productBreakdownTriggerHandler.afterUpdate(Trigger.newMap, Trigger.oldMap);
+        if(Trigger.isDelete) productBreakdownTriggerHandler.afterDelete(Trigger.old);
+    }
+}

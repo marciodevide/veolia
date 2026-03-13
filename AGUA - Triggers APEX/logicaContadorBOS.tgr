@@ -1,0 +1,89 @@
+/***********************
+Evolutivo: Petición BOS
+Autor: Everis
+Fecha creación: 25/04/2017
+
+Incluye la llamada al handler que recoge la lógica en la clase "ContadorBOS"
+*****************************/
+trigger logicaContadorBOS on AQUA_Peticion_BOe__c (before insert,before update, after update,before delete) {
+    // Include a handler for this trigger
+    // We assure the order of execution and use classes instead of executing logic here
+    System.debug('El needTriggerRun devuelve: '+UtilAcc.needTriggerRun());
+    if (!UtilAcc.needTriggerRun()) return; // Código indicado para ver si se deben ejecutar los triggers (Si viene de batch cálculo contadores no deberá lanzarse
+   
+    new Triggers()
+        .bind(Triggers.Evt.beforeinsert, new ContadorBOS())
+        .bind(Triggers.Evt.afterupdate, new ContadorBOS())
+        .bind(Triggers.Evt.beforeupdate, new idiomaCoordinador())
+        .bind(Triggers.Evt.beforeinsert, new idiomaCoordinador())
+        .bind(Triggers.Evt.beforedelete, new ContadorBOSDeletion())
+        .manage();
+    
+    // Código para actualizar el campo "Revisión" de las nuevas peticiones BOS creadas según los valores existentes en el resto de peticiones BOS de sus productos de oportunidad
+
+    if(Trigger.isInsert){
+        if(Trigger.isBefore){
+            //List<Oportunidad_Producto__c> listToUpdateBOS = new List<Oportunidad_Producto__c>();
+            List<Id> bosID = new List<Id>();
+            //Map<id,Oportunidad_Producto__c> prodOpMap = new Map<id,Oportunidad_Producto__c>();
+            
+            for(AQUA_Peticion_BOe__c p: Trigger.new) bosID.add(p.BOE_LKP_Producto_de_oportunidad__c);
+            
+            Map<id,Oportunidad_Producto__c> prodOpMap = new Map<id,Oportunidad_Producto__c>([SELECT Id, OP_RUS_Peticion_BOe_Final__c 
+                                                                                            FROM Oportunidad_Producto__c 
+                                                                                            WHERE OP_RUS_Peticion_BOe_Final__c != 0 AND Id IN: bosID]);
+            
+            for(AQUA_Peticion_BOe__c p: Trigger.new){
+                if(prodOpMap.containsKey(p.BOE_LKP_Producto_de_oportunidad__c)) p.BOS_CHK_revision__c = true;
+            }
+        }
+    }
+    
+    
+    // Creamos trigger para actualizar 3 campos del producto de la oportunidad con los valores de la petición BOS viva o finalizada más reciente que contenga
+    
+    if(Trigger.isAfter){
+        List<Id> bosIdList = new List<Id>();
+        List<Id> bosIdListNotNull = new List<Id>();
+        List<Oportunidad_Producto__c> listToUpdate = new List<Oportunidad_Producto__c>();
+        for(AQUA_Peticion_BOe__c q: Trigger.new){
+            System.debug('Estado: ' + q.BOE_SEL_Estado_BOe__c);
+            if(q.BOE_SEL_Estado_BOe__c == 'Petición anulada') bosIdList.add(q.BOE_LKP_Producto_de_oportunidad__c);
+            else bosIdListNotNull.add(q.BOE_LKP_Producto_de_oportunidad__c);
+        }
+        if(!bosIdList.isEmpty()){ //Primer caso: la petición está anulada
+            //Creamos una lista con todas las peticiones BOS con estado distinto a anulada que contengan los productos de oportunidad.
+            List<Oportunidad_Producto__c> prodOportList = [SELECT Id,OP_DAT_Fecha_envio_tecnologica__c,OP_DAT_Fecha_de_recepcion_de_oferta__c, (SELECT Id,BOE_LKP_Producto_de_oportunidad__c, BOE_DAT_Fecha_Inicio_en_curso__c,  BOE_DAT_Fecha_Fin_en_curso__c, BOE_SEL_Departamento__c FROM Peticiones_BOe1__r WHERE BOE_SEL_Estado_BOe__c != 'Petición anulada'  ORDER BY LastModifiedDate Desc ) FROM Oportunidad_Producto__c WHERE Id IN: bosIdList];
+            for( Oportunidad_Producto__c op : prodOportList ){List<AQUA_Peticion_BOe__c> petBos = new List<AQUA_Peticion_BOe__c>();
+                petBos.addAll(op.Peticiones_BOe1__r);
+                if(!petBos.isEmpty()){
+                    op.OP_DAT_Fecha_envio_tecnologica__c = petBos.get(0).BOE_DAT_Fecha_Inicio_en_curso__c;
+                    op.OP_DAT_Fecha_de_recepcion_de_oferta__c = petBos.get(0).BOE_DAT_Fecha_Fin_en_curso__c;
+                }else{
+                    op.OP_DAT_Fecha_envio_tecnologica__c = null;
+                    op.OP_DAT_Fecha_de_recepcion_de_oferta__c = null; 
+                }
+                listToUpdate.add(op);
+            }   
+        }
+        if(!bosIdListNotNull.isEmpty()){  //Segundo caso: La petición modificada no está anulada. Asignamos esos valores directamente.
+            List<Oportunidad_Producto__c> prodOportList = [SELECT Id,OP_DAT_Fecha_envio_tecnologica__c,OP_DAT_Fecha_de_recepcion_de_oferta__c, (SELECT Id,BOE_LKP_Producto_de_oportunidad__c, BOE_DAT_Fecha_Inicio_en_curso__c,  BOE_DAT_Fecha_Fin_en_curso__c, BOE_SEL_Departamento__c FROM Peticiones_BOe1__r ORDER BY LastModifiedDate Desc ) FROM Oportunidad_Producto__c WHERE Id IN: bosIdListNotNull];
+            for(Oportunidad_Producto__c op : prodOportList ){
+               List<AQUA_Peticion_BOe__c> petBos = new List<AQUA_Peticion_BOe__c>();
+               petBos.addAll(op.Peticiones_BOe1__r);
+               System.debug('La lista contiene los siguientes elementos: ' + petBos);
+               //op.OP_TXT_Departamento__c = petBos.get(0).BOE_SEL_Departamento__c;
+               op.OP_DAT_Fecha_envio_tecnologica__c = petBos.get(0).BOE_DAT_Fecha_Inicio_en_curso__c;
+               op.OP_DAT_Fecha_de_recepcion_de_oferta__c = petBos.get(0).BOE_DAT_Fecha_Fin_en_curso__c;
+               listToUpdate.add(op);
+            }           
+        }
+        try{
+            update listToUpdate;
+        }catch(Exception e){
+            System.debug('Error: '+e.getMessage());
+        }
+
+    
+    }
+}

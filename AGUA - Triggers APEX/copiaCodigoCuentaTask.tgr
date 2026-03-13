@@ -1,0 +1,35 @@
+trigger copiaCodigoCuentaTask on Task (before insert,before update) {
+    list<Id> idsTareas = new list<Id>();
+    if(Trigger.isInsert || Trigger.isUpdate){
+        list<Task> tareasInsert= Trigger.new;
+        for(Task tarea: tareasInsert) idsTareas.add(tarea.WhatId);
+        list<Account> cuentas = new list<Account>([SELECT Id,COM_NUM_Codigo__c,COM_FOR_DSyT__c, COM_FOR_DCG__c  FROM Account WHERE Id IN: idsTareas]);
+        if(cuentas.isEmpty()){
+            list<Opportunity> oportunidades = new list<Opportunity>([SELECT Id,OPO_TXT_Codigo_Oportunidad__c,Account.COM_NUM_Codigo__c, Account.COM_FOR_DCG__c,OPO_SEL_Territorio_Oportunidad__c FROM Opportunity WHERE Id IN: idsTareas]);
+            for(Task tarea2: tareasInsert){
+                for(Opportunity op: oportunidades){
+                    if(tarea2.WhatId == op.Id){
+                        tarea2.ACT_TXT_CodigoOportunidad__c = op.OPO_TXT_Codigo_Oportunidad__c;
+                        tarea2.ACT_TXT_CodigoCuenta__c = op.Account.COM_NUM_Codigo__c;
+                        //tarea2.ACT_TXT_Account_DSIT__c = op.Account_DSIT__c;
+                        tarea2.ACT_TXT_Descripcion__c = tarea2.Subject;
+                        if(tarea2.ACT_SEL_Territorio__c==null ||tarea2.ACT_SEL_Territorio__c==''){
+                            tarea2.ACT_SEL_Territorio__c =  op.OPO_SEL_Territorio_Oportunidad__c;
+                        }
+                    }
+                }
+            }
+        } else{
+            for(Task tarea2: tareasInsert){
+                for(Account ac: cuentas){
+                    if(tarea2.WhatId == ac.Id){
+                        tarea2.ACT_TXT_CodigoCuenta__c = ac.COM_NUM_Codigo__c;
+                        //tarea2.ACT_TXT_Account_DSIT__c =ac.COM_FOR_DSyT__c;
+                        tarea2.ACT_SEL_Territorio__c = ac.COM_FOR_DCG__c;
+                        tarea2.ACT_TXT_Descripcion__c = tarea2.Subject;
+                    }
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,5 @@
+trigger peticionBloqueada on AQUA_PeticionAltaCompania__c (before delete) {
+    for(AQUA_PeticionAltaCompania__c a: Trigger.old){
+        if(a.TECH_IsBlocked__c == true) a.addError('No puede eliminar una petición de alta de compañía en este estado');
+    }
+}

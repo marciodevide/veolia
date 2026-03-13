@@ -1,0 +1,11 @@
+trigger AccountCreationRequestTrigger on AQUA_PeticionAltaCompania__c (before insert, before update, before delete, after insert, after update, after delete) {
+    if(Trigger.isBefore){
+        if(Trigger.isInsert) AccountCreationRequestTriggerHandler.beforeInsert(Trigger.new);
+        if(Trigger.isUpdate) AccountCreationRequestTriggerHandler.beforeUpdate(Trigger.new, Trigger.old);
+    }
+    if(Trigger.isAfter){
+        if(Trigger.isInsert) AccountCreationRequestTriggerHandler.afterInsert(Trigger.new);
+        if(Trigger.isUpdate) AccountCreationRequestTriggerHandler.afterUpdate(Trigger.new, Trigger.old);
+        //if(Trigger.isDelete) AccountCreationRequestTriggerHandler.afterDelete(Trigger.old);
+    }
+}

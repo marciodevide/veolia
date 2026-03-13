@@ -1,0 +1,132 @@
+trigger estructuraOrg on Account (before insert, before update) {
+    list <RecordType> RecordTypeHija = new list<RecordType>([SELECT Id FROM RecordType WHERE developerName = 'Compania_Hija']);
+    Id idHija= RecordTypeHija.get(0).Id;
+    list <AQUA_Pais__c> listCountries = new list<AQUA_Pais__c>([SELECT Id, Name FROM AQUA_Pais__c]);
+    Id idEspana;
+    
+    for(AQUA_Pais__c auxPais : listCountries){
+        if(auxPais.Name == 'Spain') idEspana = auxPais.Id;
+    }
+    
+    boolean cambioNodo = false;
+    
+    Map<Id,AQUA_Municipio__c> mapaMuni = new Map<Id,AQUA_Municipio__c>();
+    List<Id> municipios = new List<Id>();
+    List<Id> paises = new List<Id>();
+    
+    List<AQUA_Nodos__c> listNodoSinTerritorio = new List<AQUA_Nodos__c>([SELECT Id FROM AQUA_Nodos__c WHERE Name = 'Sin Estructura Territorial' LIMIT 1]);
+    
+    if(Trigger.isInsert){
+        if (UserInfo.getUserId() != Label.ADMIN_USER_SAP_ID){
+            for(Account a: Trigger.new){
+                if(a.RecordtypeId == idHija){
+                    System.debug('*****Marta_COM_LKP_Pais__c: '+a.COM_LKP_Pais__c);
+                    System.debug('*****Marta_idEspanaaaaaaaaa '+idEspana);
+                    
+                    if(a.COM_LKP_Pais__c == idEspana){
+                        municipios.add(a.COM_LKP_Municipio__c);
+                        System.debug('*****  Municipios: '+ municipios);
+                    } else{ 
+                        paises.add(a.COM_LKP_Pais__c); 
+                        System.debug('*****  el pais es : '+ paises);
+                    }
+                }
+            }
+
+            System.debug('*****Marta_municipios: '+ municipios);
+            System.debug('*****Marta_paises: '+ paises);
+            if(municipios.size()>0){
+                for(AQUA_Municipio__c muni : [SELECT Id, name, MUN_LKP_Estructura_Organizativa__c, MUN_LKP_Pais__c
+                                                FROM AQUA_Municipio__c 
+                                                WHERE Id IN :municipios ]){                     
+                    mapaMuni.put(muni.Id, muni);
+                    System.debug('*****  El mapa es: '+ mapaMuni);
+                }
+            }else{
+                for(AQUA_Municipio__c muni2 : [SELECT Id, name, MUN_LKP_Estructura_Organizativa__c, MUN_LKP_Pais__c
+                                                FROM AQUA_Municipio__c 
+                                                WHERE MUN_LKP_Pais__c IN :paises LIMIT 1 ]){   
+                    mapaMuni.put(muni2.MUN_LKP_Pais__c, muni2);
+                    System.debug('*****  El mapa es: '+ mapaMuni);
+                }
+            }
+            
+            
+            for(Account a: Trigger.new){
+                if(a.RecordtypeId == idHija){
+                    System.debug('******* cuenta a insertar '+ a);
+                    if(a.COM_LKP_Pais__c != null){
+                        if(a.COM_LKP_Pais__c == idEspana){
+                            System.debug('*****  el país es España ******');
+                            if(a.COM_LKP_Municipio__c==null){
+                                a.addError('El municipio debe estar informado si el pais es España.');
+                            }else{
+                                a.COM_LKP_EstructuraTerritorial__c = mapaMuni.get(a.COM_LKP_Municipio__c).MUN_LKP_Estructura_Organizativa__c;
+                                System.debug('*****  estructura territorial ******' + a.COM_LKP_EstructuraTerritorial__c);
+                            }
+                        }
+                        else{ 
+                            System.debug('*****  el país NO es España ******');
+                            if(mapaMuni.get(a.COM_LKP_Pais__c) != null) {
+                                a.COM_LKP_EstructuraTerritorial__c = mapaMuni.get(a.COM_LKP_Pais__c).MUN_LKP_Estructura_Organizativa__c;   
+                                System.debug('*****  estructura territorial ******');
+                            }else a.COM_LKP_EstructuraTerritorial__c = listNodoSinTerritorio[0].Id;
+                        }
+                    }
+                }   
+            }           
+        }       
+    }
+    
+    if(Trigger.isUpdate){
+        if (UserInfo.getUserId() != Label.ADMIN_USER_SAP_ID){
+            for(Account a: Trigger.new){
+                if ((Trigger.oldMap.get(a.Id).COM_LKP_Pais__c != a.COM_LKP_Pais__c || Trigger.oldMap.get(a.Id).COM_LKP_Municipio__c != a.COM_LKP_Municipio__c) && (Trigger.oldMap.get(a.Id).COM_LKP_EstructuraTerritorial__c == a.COM_LKP_EstructuraTerritorial__c)){
+                    if(a.RecordtypeId == idHija){
+                        cambioNodo = true;
+                        if(a.COM_LKP_Pais__c != null){
+                            if(a.COM_LKP_Pais__c == idEspana){
+                                municipios.add(a.COM_LKP_Municipio__c);
+                                System.debug('*****  Municipios: '+ municipios);
+                            }else{
+                                paises.add(a.COM_LKP_Pais__c);
+                                System.debug('*****  el pais es : '+ paises);  
+                            }
+                        }
+                    }
+                }
+            }
+            if (cambioNodo = true){
+                for(AQUA_Municipio__c muni : [SELECT Id, name, MUN_LKP_Estructura_Organizativa__c, MUN_LKP_Pais__c
+                                              FROM AQUA_Municipio__c 
+                                              WHERE Id IN :municipios OR (MUN_LKP_Pais__c IN :paises AND  Name = '*')]){                                                  
+                    mapaMuni.put(muni.Id, muni);
+                    System.debug('*****  El mapa es: '+ mapaMuni);
+                    mapaMuni.put(muni.MUN_LKP_Pais__c, muni);
+                    System.debug('*****  El mapa es: '+ mapaMuni);
+                }
+                
+                for(Account a: Trigger.new){
+                    if ((Trigger.oldMap.get(a.Id).COM_LKP_Pais__c != a.COM_LKP_Pais__c || Trigger.oldMap.get(a.Id).COM_LKP_Municipio__c != a.COM_LKP_Municipio__c) && (Trigger.oldMap.get(a.Id).COM_LKP_EstructuraTerritorial__c == a.COM_LKP_EstructuraTerritorial__c)){
+                        if(a.RecordtypeId == idHija){
+                            System.debug('******* cuenta a updatear '+ a);
+                            if(a.COM_LKP_Pais__c != null){
+                                if(a.COM_LKP_Pais__c == idEspana){
+                                    System.debug('*****  el país es España ******');
+                                    a.COM_LKP_EstructuraTerritorial__c = mapaMuni.get(a.COM_LKP_Municipio__c).MUN_LKP_Estructura_Organizativa__c;
+                                    System.debug('*****  estructura territorial ******' + a.COM_LKP_EstructuraTerritorial__c);
+                                }
+                                else{
+                                    System.debug('*****  el país NO es España ******');
+                                    if(mapaMuni.get(a.COM_LKP_Pais__c) != null) {a.COM_LKP_EstructuraTerritorial__c = mapaMuni.get(a.COM_LKP_Pais__c).MUN_LKP_Estructura_Organizativa__c;   
+                                        System.debug('*****  estructura territorial ******'); 
+                                    }else a.COM_LKP_EstructuraTerritorial__c = listNodoSinTerritorio[0].Id;
+                                }
+                            }
+                        }   
+                    }
+                } 
+            }
+        }                           
+    }
+}

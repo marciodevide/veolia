@@ -1,0 +1,158 @@
+trigger registraHistorico on Oportunidad_Producto__c (after insert, after update, before delete) {
+
+    System.debug('El needTriggerRun devuelve: '+UtilAcc.needTriggerRun());
+    if (!UtilAcc.needTriggerRun() || System.Label.EsVisibilidadOportunidades == 'True') return; // Código indicado para ver si se deben ejecutar los triggers (Si viene de batch cálculo contadores no deberá lanzarse
+
+    if(Trigger.isInsert){
+        List<Oportunidad_Producto__c> opProducto = Trigger.new;
+        List<AQUA_Historico_productos_de_oportunidad__c> historico = new List<AQUA_Historico_productos_de_oportunidad__c>();
+        //[SELECT Id,CreatedBy.name FROM Oportunidad_Producto__c WHERE Id IN: Trigger.new]
+        Map<Id,Oportunidad_Producto__c> opProductos2 = new Map<Id,Oportunidad_Producto__c>();
+        for(Oportunidad_Producto__c opProd: opProducto){
+        	opProductos2.put(opProd.id,opProd);    
+        }
+        for(Oportunidad_Producto__c  a: opProducto){
+            Oportunidad_Producto__c b = opProductos2.get(a.Id);
+            AQUA_Historico_productos_de_oportunidad__c entradaHistorico = new AQUA_Historico_productos_de_oportunidad__c();
+            entradaHistorico.PRODH_TXT_Tipo_modificacion__c = 'New';
+            entradaHistorico.PRODH_TXT_Elemento__c = 'Product';
+            entradaHistorico.PRODH_TXT_Valor_anterior__c = '';
+            entradaHistorico.PRODH_TXT_Valor_nuevo__c = string.valueof(a.OP_SEL_Producto__c);
+            entradaHistorico.PRODH_TXT_Usuario_modificacion__c = string.valueof(UserInfo.getname());
+            entradaHistorico.PRODH_TXT_Fecha_modificacion__c = a.CreatedDate;
+            entradaHistorico.HIS_LKP_Oportunidad__c = a.OP_MD_Oportunidad__c;
+            historico.add(entradaHistorico);
+        }
+        upsert historico;
+    }
+    if(Trigger.isUpdate){
+        List<Oportunidad_Producto__c> opProductoOld = Trigger.old;
+        List<Oportunidad_Producto__c> opProductoNew = Trigger.new;
+        List<AQUA_Historico_productos_de_oportunidad__c> historico = new List<AQUA_Historico_productos_de_oportunidad__c>();
+        //[SELECT Id,LastModifiedBy.name FROM Oportunidad_Producto__c WHERE Id IN: Trigger.new]
+        Map<Id,Oportunidad_Producto__c> opProductos2 = new Map<Id,Oportunidad_Producto__c>();
+        for(Oportunidad_Producto__c opProd: opProductoNew){
+        	opProductos2.put(opProd.id,opProd);    
+        }
+        for(Oportunidad_Producto__c a: opProductoNew){
+            Oportunidad_Producto__c b = opProductos2.get(a.Id);
+            if(a.CurrencyIsoCode != Trigger.oldMap.get(a.Id).CurrencyIsoCode){
+                AQUA_Historico_productos_de_oportunidad__c entradaHistorico = new AQUA_Historico_productos_de_oportunidad__c();
+                entradaHistorico.PRODH_TXT_Tipo_modificacion__c = 'Edit';
+                entradaHistorico.PRODH_TXT_Elemento__c = 'Currency';
+                entradaHistorico.PRODH_TXT_Valor_anterior__c = string.valueof(Trigger.oldMap.get(a.Id).CurrencyIsoCode);
+                entradaHistorico.PRODH_TXT_Valor_nuevo__c = string.valueof(a.CurrencyIsoCode);
+                entradaHistorico.PRODH_TXT_Usuario_modificacion__c = string.valueof(UserInfo.getname());
+                entradaHistorico.PRODH_TXT_Fecha_modificacion__c = a.LastModifiedDate;
+                entradaHistorico.HIS_LKP_Oportunidad__c = a.OP_MD_Oportunidad__c;
+                historico.add(entradaHistorico);
+            }
+            if(a.OP_NUM_Cantidad__c != Trigger.oldMap.get(a.Id).OP_NUM_Cantidad__c){
+                AQUA_Historico_productos_de_oportunidad__c entradaHistorico = new AQUA_Historico_productos_de_oportunidad__c();
+                entradaHistorico.PRODH_TXT_Tipo_modificacion__c = 'Edit';
+                entradaHistorico.PRODH_TXT_Elemento__c = 'Quantity';
+                entradaHistorico.PRODH_TXT_Valor_anterior__c = string.valueof(Trigger.oldMap.get(a.Id).OP_NUM_Cantidad__c);
+                entradaHistorico.PRODH_TXT_Valor_nuevo__c = string.valueof(a.OP_NUM_Cantidad__c);
+                entradaHistorico.PRODH_TXT_Usuario_modificacion__c = string.valueof(UserInfo.getname());
+                entradaHistorico.PRODH_TXT_Fecha_modificacion__c = a.LastModifiedDate;
+                entradaHistorico.HIS_LKP_Oportunidad__c = a.OP_MD_Oportunidad__c;
+                historico.add(entradaHistorico);
+            }
+            if(a.OP_TXT_DescripcionAmpliada__c != Trigger.oldMap.get(a.Id).OP_TXT_DescripcionAmpliada__c){
+                AQUA_Historico_productos_de_oportunidad__c entradaHistorico = new AQUA_Historico_productos_de_oportunidad__c();
+                entradaHistorico.PRODH_TXT_Tipo_modificacion__c = 'Edit';
+                entradaHistorico.PRODH_TXT_Elemento__c = 'Extended description';
+                entradaHistorico.PRODH_TXT_Valor_anterior__c = Trigger.oldMap.get(a.Id).OP_TXT_DescripcionAmpliada__c;
+                entradaHistorico.PRODH_TXT_Valor_nuevo__c = a.OP_TXT_DescripcionAmpliada__c;
+                entradaHistorico.PRODH_TXT_Usuario_modificacion__c = string.valueof(UserInfo.getname());
+                entradaHistorico.PRODH_TXT_Fecha_modificacion__c = a.LastModifiedDate;
+                entradaHistorico.HIS_LKP_Oportunidad__c = a.OP_MD_Oportunidad__c;
+                historico.add(entradaHistorico);
+            }/*
+            if(a.OP_DAT_FechaOfertaPreparada__c != Trigger.oldMap.get(a.Id).OP_DAT_FechaOfertaPreparada__c){
+                AQUA_Historico_productos_de_oportunidad__c entradaHistorico = new AQUA_Historico_productos_de_oportunidad__c();
+                entradaHistorico.PRODH_TXT_Tipo_modificacion__c = 'Edit';
+                entradaHistorico.PRODH_TXT_Elemento__c = 'Offer ready date';
+                entradaHistorico.PRODH_TXT_Valor_anterior__c = string.valueof(Trigger.oldMap.get(a.Id).OP_DAT_FechaOfertaPreparada__c);
+                entradaHistorico.PRODH_TXT_Valor_nuevo__c = string.valueof(a.OP_DAT_FechaOfertaPreparada__c);
+                entradaHistorico.PRODH_TXT_Usuario_modificacion__c = string.valueof(b.LastModifiedBy.name);
+                entradaHistorico.PRODH_TXT_Fecha_modificacion__c = a.LastModifiedDate;
+                entradaHistorico.HIS_LKP_Oportunidad__c = a.OP_MD_Oportunidad__c;
+                historico.add(entradaHistorico);
+            }
+            if(a.OP_DAT_FechaSolicitudOferta__c != Trigger.oldMap.get(a.Id).OP_DAT_FechaSolicitudOferta__c){
+                AQUA_Historico_productos_de_oportunidad__c entradaHistorico = new AQUA_Historico_productos_de_oportunidad__c();
+                entradaHistorico.PRODH_TXT_Tipo_modificacion__c = 'Edit';
+                entradaHistorico.PRODH_TXT_Elemento__c = 'Offer request date';
+                entradaHistorico.PRODH_TXT_Valor_anterior__c = string.valueof(Trigger.oldMap.get(a.Id).OP_DAT_FechaSolicitudOferta__c);
+                entradaHistorico.PRODH_TXT_Valor_nuevo__c = string.valueof(a.OP_DAT_FechaSolicitudOferta__c);
+                entradaHistorico.PRODH_TXT_Usuario_modificacion__c = string.valueof(b.LastModifiedBy.name);
+                entradaHistorico.PRODH_TXT_Fecha_modificacion__c = a.LastModifiedDate;
+                entradaHistorico.HIS_LKP_Oportunidad__c = a.OP_MD_Oportunidad__c;
+                historico.add(entradaHistorico);
+            }*/
+            if(a.OP_POR_PorcentajeDescuento__c != Trigger.oldMap.get(a.Id).OP_POR_PorcentajeDescuento__c){
+                AQUA_Historico_productos_de_oportunidad__c entradaHistorico = new AQUA_Historico_productos_de_oportunidad__c();
+                entradaHistorico.PRODH_TXT_Tipo_modificacion__c = 'Edit';
+                entradaHistorico.PRODH_TXT_Elemento__c = '% discount';
+                entradaHistorico.PRODH_TXT_Valor_anterior__c = string.valueof(Trigger.oldMap.get(a.Id).OP_POR_PorcentajeDescuento__c);
+                entradaHistorico.PRODH_TXT_Valor_nuevo__c = string.valueof(a.OP_POR_PorcentajeDescuento__c);
+                entradaHistorico.PRODH_TXT_Usuario_modificacion__c = string.valueof(UserInfo.getname());
+                entradaHistorico.PRODH_TXT_Fecha_modificacion__c = a.LastModifiedDate;
+                entradaHistorico.HIS_LKP_Oportunidad__c = a.OP_MD_Oportunidad__c;
+                historico.add(entradaHistorico);
+            }
+            if(a.OP_DIV_PrecioSinIVA__c != Trigger.oldMap.get(a.Id).OP_DIV_PrecioSinIVA__c){
+                AQUA_Historico_productos_de_oportunidad__c entradaHistorico = new AQUA_Historico_productos_de_oportunidad__c();
+                entradaHistorico.PRODH_TXT_Tipo_modificacion__c = 'Edit';
+                entradaHistorico.PRODH_TXT_Elemento__c = 'Price (without taxes)';
+                entradaHistorico.PRODH_TXT_Valor_anterior__c = string.valueof(Trigger.oldMap.get(a.Id).OP_DIV_PrecioSinIVA__c);
+                entradaHistorico.PRODH_TXT_Valor_nuevo__c = string.valueof(a.OP_DIV_PrecioSinIVA__c);
+                entradaHistorico.PRODH_TXT_Usuario_modificacion__c = string.valueof(UserInfo.getname());
+                entradaHistorico.PRODH_TXT_Fecha_modificacion__c = a.LastModifiedDate;
+                entradaHistorico.HIS_LKP_Oportunidad__c = a.OP_MD_Oportunidad__c;
+                historico.add(entradaHistorico);
+            }
+            if(a.OP_SEL_Producto__c != Trigger.oldMap.get(a.Id).OP_SEL_Producto__c){
+                AQUA_Historico_productos_de_oportunidad__c entradaHistorico = new AQUA_Historico_productos_de_oportunidad__c();
+                entradaHistorico.PRODH_TXT_Tipo_modificacion__c = 'Edit';
+                entradaHistorico.PRODH_TXT_Elemento__c = 'Product';
+                entradaHistorico.PRODH_TXT_Valor_anterior__c = string.valueof(Trigger.oldMap.get(a.Id).OP_SEL_Producto__c);
+                entradaHistorico.PRODH_TXT_Valor_nuevo__c = string.valueof(a.OP_SEL_Producto__c);
+                entradaHistorico.PRODH_TXT_Usuario_modificacion__c = string.valueof(UserInfo.getname());
+                entradaHistorico.PRODH_TXT_Fecha_modificacion__c = a.LastModifiedDate;
+                entradaHistorico.HIS_LKP_Oportunidad__c = a.OP_MD_Oportunidad__c;
+                historico.add(entradaHistorico);
+            }
+            /*if(a.OP_SEL_ResponsableElaboracionOferta__c != Trigger.oldMap.get(a.Id).OP_SEL_ResponsableElaboracionOferta__c){
+                AQUA_Historico_productos_de_oportunidad__c entradaHistorico = new AQUA_Historico_productos_de_oportunidad__c();
+                entradaHistorico.PRODH_TXT_Tipo_modificacion__c = 'Edit';
+                entradaHistorico.PRODH_TXT_Elemento__c = 'Responsable elaboración oferta';
+                entradaHistorico.PRODH_TXT_Valor_anterior__c = string.valueof(Trigger.oldMap.get(a.Id).OP_SEL_ResponsableElaboracionOferta__c);
+                entradaHistorico.PRODH_TXT_Valor_nuevo__c = string.valueof(a.OP_SEL_ResponsableElaboracionOferta__c);
+                entradaHistorico.PRODH_TXT_Usuario_modificacion__c = string.valueof(b.LastModifiedBy.name);
+                entradaHistorico.PRODH_TXT_Fecha_modificacion__c = a.LastModifiedDate;
+                entradaHistorico.HIS_LKP_Oportunidad__c = a.OP_MD_Oportunidad__c;
+                historico.add(entradaHistorico);
+            }*/
+        }
+        upsert historico;
+    }
+    if(Trigger.isDelete){
+        List<Oportunidad_Producto__c> opProducto = Trigger.old;
+        List<AQUA_Historico_productos_de_oportunidad__c> historico = new List<AQUA_Historico_productos_de_oportunidad__c>();
+        for(Oportunidad_Producto__c a: opProducto){
+            AQUA_Historico_productos_de_oportunidad__c entradaHistorico = new AQUA_Historico_productos_de_oportunidad__c();
+            entradaHistorico.PRODH_TXT_Tipo_modificacion__c = 'Delete';
+            entradaHistorico.PRODH_TXT_Elemento__c = 'Product';
+            entradaHistorico.PRODH_TXT_Valor_anterior__c = String.valueOf(a.OP_SEL_Producto__c);
+            entradaHistorico.PRODH_TXT_Valor_nuevo__c = '';
+            entradaHistorico.PRODH_TXT_Usuario_modificacion__c = String.valueOf(UserInfo.getname());
+            Datetime dt = System.now();
+            entradaHistorico.PRODH_TXT_Fecha_modificacion__c = dt;
+            entradaHistorico.HIS_LKP_Oportunidad__c = a.OP_MD_Oportunidad__c;
+            historico.add(entradaHistorico);
+        }
+        upsert historico;
+    }
+}
